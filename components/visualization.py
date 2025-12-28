@@ -27,12 +27,10 @@ class EDAVisualizer:
         ax1.tick_params(axis='x', rotation=0)
         
         # Pie chart
-        y.value_counts().plot(kind='pie', ax=ax2, autopct='%1.1f%%', 
-                             colors=['skyblue', 'lightcoral'], startangle=90)
+        y.value_counts().plot(kind='pie', ax=ax2, autopct='%1.1f%%', startangle=90)
         ax2.set_title(f'{title} - Proportions')
         ax2.set_ylabel('')
-        
-        plt.tight_layout()
+
         plt.show()
     
     @staticmethod
@@ -43,72 +41,72 @@ class EDAVisualizer:
         n_rows = (len(numerical_cols) + n_cols - 1) // n_cols
         
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5*n_rows))
-        if n_rows == 1:
-            axes = [axes] if n_cols == 1 else axes
-        else:
-            axes = axes.flatten()
-        
+        axes = np.array(axes).reshape(-1)
+
         for i, col in enumerate(numerical_cols):
-            if i < len(axes):
-                for class_val in df[target_col].unique():
-                    subset = df[df[target_col] == class_val][col]
-                    axes[i].hist(subset, alpha=0.7, label=f'Class {class_val}', bins=30)
-                
-                axes[i].set_title(f'Distribution of {col}')
-                axes[i].set_xlabel(col)
-                axes[i].set_ylabel('Frequency')
-                axes[i].legend()
-        
-        # Hide empty subplots
-        for i in range(len(numerical_cols), len(axes)):
-            axes[i].set_visible(False)
-        
-        plt.tight_layout()
+            for class_val in df[target_col].unique():
+                subset = df[df[target_col] == class_val][col]
+                axes[i].hist(subset, alpha=0.6, bins=30, label=f'Class {class_val}')
+
+            axes[i].set_title(f'Distribution of {col}')
+            axes[i].legend()
+
+        for j in range(len(numerical_cols), len(axes)):
+            axes[j].set_visible(False)
+
         plt.show()
     
     @staticmethod
     def plot_categorical_distributions(df: pd.DataFrame, categorical_cols: List[str], 
-                                     target_col: str = 'class') -> None:
+                                     target_col: str = 'class', max_unique: int = 20, top_n: int = 10) -> None:
         """Plot distributions of categorical features by class."""
-        n_cols = min(2, len(categorical_cols))
-        n_rows = (len(categorical_cols) + n_cols - 1) // n_cols
-        
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 6*n_rows))
-        if n_rows == 1:
-            axes = [axes] if n_cols == 1 else axes
-        else:
-            axes = axes.flatten()
-        
-        for i, col in enumerate(categorical_cols):
-            if i < len(axes) and col in df.columns:
-                # Create crosstab
-                ct = pd.crosstab(df[col], df[target_col], normalize='index')
-                ct.plot(kind='bar', ax=axes[i], stacked=True)
-                axes[i].set_title(f'{col} by Class')
-                axes[i].set_xlabel(col)
-                axes[i].set_ylabel('Proportion')
-                axes[i].legend(title='Class')
-                axes[i].tick_params(axis='x', rotation=45)
-        
-        # Hide empty subplots
-        for i in range(len(categorical_cols), len(axes)):
-            axes[i].set_visible(False)
-        
-        plt.tight_layout()
+        valid_cols = []
+        for col in categorical_cols:
+            if col not in df.columns:
+                continue
+            if df[col].nunique() > max_unique:
+                print(f"Skipping '{col}' (too many categories: {df[col].nunique()})")
+                continue
+            valid_cols.append(col)
+
+        if not valid_cols:
+            print("No suitable categorical columns to plot.")
+            return
+
+        n_cols = min(2, len(valid_cols))
+        n_rows = (len(valid_cols) + n_cols - 1) // n_cols
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(14, 6 * n_rows))
+        axes = np.array(axes).reshape(-1)
+
+        for i, col in enumerate(valid_cols):
+            top_categories = df[col].value_counts().nlargest(top_n).index
+            filtered_df = df[df[col].isin(top_categories)]
+
+            ct = pd.crosstab(
+                filtered_df[col],
+                filtered_df[target_col],
+                normalize='index'
+            )
+
+            ct.plot(kind='bar', stacked=True, ax=axes[i], legend=True)
+            axes[i].set_title(f'{col} by Class (Top {top_n})')
+            axes[i].set_ylabel('Proportion')
+            axes[i].tick_params(axis='x', rotation=45)
+
+        for j in range(len(valid_cols), len(axes)):
+            axes[j].set_visible(False)
+
         plt.show()
     
     @staticmethod
     def plot_correlation_matrix(df: pd.DataFrame, figsize: tuple = (12, 10)) -> None:
         """Plot correlation matrix of numerical features."""
-        numerical_cols = df.select_dtypes(include=[np.number]).columns
-        correlation_matrix = df[numerical_cols].corr()
-        
+        corr = df.select_dtypes(include=[np.number]).corr()
+
         plt.figure(figsize=figsize)
-        mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
-        sns.heatmap(correlation_matrix, mask=mask, annot=True, cmap='coolwarm', 
-                   center=0, square=True, fmt='.2f')
+        sns.heatmap(corr, annot=False, cmap='coolwarm', center=0)
         plt.title('Feature Correlation Matrix')
-        plt.tight_layout()
         plt.show()
     
     @staticmethod
@@ -119,24 +117,18 @@ class EDAVisualizer:
             print(f"Column {time_col} not found in dataframe")
             return
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # Fraud rate by time
-        fraud_rate = df.groupby(time_col)[target_col].agg(['mean', 'count']).reset_index()
-        
-        ax1.bar(fraud_rate[time_col], fraud_rate['mean'], color='lightcoral', alpha=0.7)
-        ax1.set_title(f'Fraud Rate by {time_col}')
-        ax1.set_xlabel(time_col)
-        ax1.set_ylabel('Fraud Rate')
-        
-        # Transaction volume by time
-        ax2.bar(fraud_rate[time_col], fraud_rate['count'], color='skyblue', alpha=0.7)
-        ax2.set_title(f'Transaction Volume by {time_col}')
-        ax2.set_xlabel(time_col)
-        ax2.set_ylabel('Number of Transactions')
-        
-        plt.tight_layout()
+        summary = df.groupby(time_col)[target_col].agg(['mean', 'count'])
+
+        fig, ax = plt.subplots(1, 2, figsize=(14, 5))
+
+        summary['mean'].plot(kind='bar', ax=ax[0])
+        ax[0].set_title(f'Fraud Rate by {time_col}')
+
+        summary['count'].plot(kind='bar', ax=ax[1])
+        ax[1].set_title(f'Volume by {time_col}')
+
         plt.show()
+
 
 class ModelEvaluationVisualizer:
     """Class for model evaluation visualizations."""
@@ -149,7 +141,7 @@ class ModelEvaluationVisualizer:
         
         cm = confusion_matrix(y_true, y_pred)
         
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(6, 5))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                    xticklabels=class_names, yticklabels=class_names)
         plt.title('Confusion Matrix')
@@ -243,30 +235,18 @@ def create_comprehensive_eda_report(df: pd.DataFrame, target_col: str = 'class')
         numerical_cols.remove(target_col)
     
     if numerical_cols:
-        print(f"\nNumerical Features: {len(numerical_cols)}")
-        print(numerical_cols)
-        
-        # Plot distributions
         visualizer.plot_numerical_distributions(df, numerical_cols[:6], target_col)
-        
-        # Correlation matrix
         visualizer.plot_correlation_matrix(df[numerical_cols + [target_col]])
-    
-    # Categorical features analysis
+
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    
     if categorical_cols:
-        print(f"\nCategorical Features: {len(categorical_cols)}")
-        print(categorical_cols)
-        
-        # Plot distributions
         visualizer.plot_categorical_distributions(df, categorical_cols[:4], target_col)
-    
-    # Time-based analysis if available
+
     if 'hour_of_day' in df.columns:
         visualizer.plot_time_patterns(df, 'hour_of_day', target_col)
-    
+
     if 'day_of_week' in df.columns:
         visualizer.plot_time_patterns(df, 'day_of_week', target_col)
-    
+
     print("EDA REPORT COMPLETED")
+
