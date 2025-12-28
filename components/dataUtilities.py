@@ -1,16 +1,22 @@
-# functions for data loading, cleaning, and preprocessing
+"""
+Data utility functions for fraud detection project.
+Contains functions for data loading, cleaning, and preprocessing.
+"""
 
 import pandas as pd
 import numpy as np
+from typing import Tuple, List, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
 class DataLoader:
-   
+    """Class for loading and initial processing of fraud detection datasets."""
+    
     def __init__(self, data_path: str = "data/"):
         self.data_path = data_path
-    # for fraud data csv
+    
     def load_fraud_data(self) -> pd.DataFrame:
+        """Load the main fraud detection dataset."""
         try:
             df = pd.read_csv(f"{self.data_path}Fraud_Data.csv")
             print(f"Fraud data loaded: {df.shape}")
@@ -18,8 +24,9 @@ class DataLoader:
         except FileNotFoundError:
             print("Fraud_Data.csv not found in data directory")
             return pd.DataFrame()
-    # for ip-country csv data
+    
     def load_ip_country_data(self) -> pd.DataFrame:
+        """Load IP to country mapping dataset."""
         try:
             df = pd.read_csv(f"{self.data_path}IpAddress_to_Country.csv")
             print(f"IP-Country data loaded: {df.shape}")
@@ -27,8 +34,9 @@ class DataLoader:
         except FileNotFoundError:
             print("IpAddress_to_Country.csv not found in data directory")
             return pd.DataFrame()
-    # for creditcard csv dataset
+    
     def load_creditcard_data(self) -> pd.DataFrame:
+        """Load credit card fraud dataset."""
         try:
             df = pd.read_csv(f"{self.data_path}creditcard.csv")
             print(f"Credit card data loaded: {df.shape}")
@@ -38,11 +46,17 @@ class DataLoader:
             return pd.DataFrame()
 
 class DataCleaner:
-  
+    """Class for data cleaning operations."""
+    
     @staticmethod
     def handle_missing_values(df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFrame:
-        # Handle missing values in the dataset
-
+        """
+        Handle missing values in the dataset.
+        
+        Args:
+            df: Input dataframe
+            strategy: 'drop', 'mean', 'median', 'mode', or 'forward_fill'
+        """
         print(f"Missing values before cleaning:\n{df.isnull().sum()}")
         
         if strategy == 'drop':
@@ -67,7 +81,7 @@ class DataCleaner:
     
     @staticmethod
     def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-        # Remove duplicate rows from the dataset
+        """Remove duplicate rows from the dataset."""
         initial_shape = df.shape
         df_clean = df.drop_duplicates()
         final_shape = df_clean.shape
@@ -79,6 +93,7 @@ class DataCleaner:
     
     @staticmethod
     def correct_data_types(df: pd.DataFrame) -> pd.DataFrame:
+        """Correct data types for common columns."""
         df_clean = df.copy()
         
         # Convert timestamp columns if they exist
@@ -102,7 +117,7 @@ class DataCleaner:
         return df_clean
 
 def ip_to_int(ip_address: str) -> int:
-    # Convert IP address string to integer
+    """Convert IP address string to integer."""
     try:
         parts = ip_address.split('.')
         return (int(parts[0]) << 24) + (int(parts[1]) << 16) + (int(parts[2]) << 8) + int(parts[3])
@@ -110,7 +125,16 @@ def ip_to_int(ip_address: str) -> int:
         return 0
 
 def merge_with_geolocation(fraud_df: pd.DataFrame, ip_country_df: pd.DataFrame) -> pd.DataFrame:
-    # Merge fraud data with IP-to-country mapping for geolocation analysis
+    """
+    Merge fraud data with IP-to-country mapping for geolocation analysis.
+    
+    Args:
+        fraud_df: Main fraud dataset
+        ip_country_df: IP to country mapping dataset
+    
+    Returns:
+        Merged dataframe with country information
+    """
     # Convert IP addresses to integers
     fraud_df['ip_int'] = fraud_df['ip_address'].apply(ip_to_int)
     
